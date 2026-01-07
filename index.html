@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IoT Health Monitoring Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Inter,Arial;
+  background:radial-gradient(circle at top left,#1e1b4b,#020617 60%);
+  color:#e5e7eb;
+}
+.header{
+  text-align:center;
+  padding:25px;
+  font-size:26px;
+  font-weight:700;
+}
+.dashboard{
+  max-width:1300px;
+  margin:auto;
+  padding:30px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:25px;
+}
+.card{
+  background:rgba(255,255,255,0.06);
+  backdrop-filter:blur(14px);
+  border-radius:20px;
+  padding:22px;
+  border:1px solid rgba(255,255,255,0.15);
+}
+.card h3{
+  font-size:14px;
+  color:#9ca3af;
+}
+.value{
+  font-size:44px;
+  font-weight:800;
+}
+.big-card{ grid-column:span 3; }
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+th,td{
+  padding:10px;
+  text-align:center;
+}
+th{ color:#a5b4fc; }
+
+.spo2-danger{
+  color:#ef4444;
+  animation:pulse 1.4s infinite;
+}
+@keyframes pulse{
+  0%{text-shadow:0 0 0 red}
+  70%{text-shadow:0 0 20px red}
+  100%{text-shadow:0 0 0 red}
+}
+.alert{
+  margin-top:10px;
+  padding:10px;
+  text-align:center;
+  border-radius:12px;
+  display:none;
+  background:rgba(239,68,68,0.2);
+  color:#ef4444;
+  font-weight:700;
+}
+</style>
+</head>
+
+<body>
+
+<audio id="alertSound">
+  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg">
+</audio>
+
+<div class="header">
+  🩺 IoT Health Monitoring Dashboard
+</div>
+
+<div class="dashboard">
+
+<!-- HEART RATE -->
+<div class="card">
+  <h3>❤️ HEART RATE</h3>
+  <div class="value" id="hrValue">-- BPM</div>
+  <canvas id="hrMiniChart" height="60"></canvas>
+</div>
+
+<!-- SPO2 -->
+<div class="card">
+  <h3>🫁 SpO₂ LEVEL</h3>
+  <div style="position:relative;width:150px;margin:auto">
+    <canvas id="spo2Gauge"></canvas>
+    <div id="spo2Value"
+      style="position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      font-size:28px;font-weight:800">
+      --%
+    </div>
+  </div>
+  <div id="doctorAlert" class="alert">🚑 CALL DOCTOR IMMEDIATELY</div>
+</div>
+
+<!-- SEVERITY -->
+<div class="card">
+  <h3>⚠ SEVERITY</h3>
+  <div class="value" id="severity">--</div>
+</div>
+
+<!-- GRAPH -->
+<div class="card big-card">
+  <h3>📈 Health Trends</h3>
+  <canvas id="healthChart"></canvas>
+</div>
+
+<!-- TABLE -->
+<div class="card big-card">
+<h3>📋 Recent Readings</h3>
+<table id="dataTable">
+<tr>
+<th>#</th><th>HR</th><th>SpO₂</th><th>Time</th>
+</tr>
+</table>
+</div>
+
+</div>
+
+<script>
+const API = "https://iot-health-backend-2kr8.onrender.com";
+
+let healthChart;
+
+async function loadDashboard(){
+  const latest = await fetch(API+"/latest").then(r=>r.json());
+  const data = await fetch(API+"/data").then(r=>r.json());
+
+  // VALUES
+  document.getElementById("hrValue").innerText = latest.hr+" BPM";
+  document.getElementById("spo2Value").innerText = latest.spo2+"%";
+  document.getElementById("severity").innerText =
+    latest.spo2 < 90 ? "2" : "1";
+
+  // SPO2 ALERT
+  if(latest.spo2 < 90){
+    document.getElementById("spo2Value").classList.add("spo2-danger");
+    document.getElementById("doctorAlert").style.display="block";
+    document.getElementById("alertSound").play();
+  }
+
+  // TABLE
+  const table = document.getElementById("dataTable");
+  table.innerHTML =
+    "<tr><th>#</th><th>HR</th><th>SpO₂</th><th>Time</th></tr>";
+  data.slice(-10).reverse().forEach((d,i)=>{
+    table.innerHTML +=
+      `<tr>
+        <td>${i+1}</td>
+        <td>${d.hr}</td>
+        <td>${d.spo2}%</td>
+        <td>${new Date(d.time).toLocaleString()}</td>
+      </tr>`;
+  });
+
+  // GRAPH
+  const labels = data.map(d=>new Date(d.time).toLocaleTimeString());
+  const hr = data.map(d=>d.hr);
+  const spo2 = data.map(d=>d.spo2);
+
+  if(healthChart) healthChart.destroy();
+  healthChart = new Chart(healthChartCanvas,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'HR',data:hr,borderColor:'#ef4444'},
+        {label:'SpO₂',data:spo2,borderColor:'#22c55e'}
+      ]
+    }
+  });
+
+  // SPO2 GAUGE
+  new Chart(spo2Gauge,{
+    type:'doughnut',
+    data:{
+      datasets:[{
+        data:[latest.spo2,100-latest.spo2],
+        backgroundColor:['#22c55e','#111'],
+        borderWidth:0
+      }]
+    },
+    options:{
+      rotation:-90,
+      circumference:180,
+      cutout:'75%',
+      plugins:{legend:{display:false}}
+    }
+  });
+}
+
+const healthChartCanvas = document.getElementById("healthChart");
+loadDashboard();
+setInterval(loadDashboard,5000);
+</script>
+
+</body>
+</html>
