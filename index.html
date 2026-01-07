@@ -5,6 +5,12 @@
 <title>IoT Health Monitoring Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <script>
+if(localStorage.getItem("loggedIn") !== "true"){
+  window.location.href = "login.html";
+}
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -27,6 +33,9 @@ body{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
   gap:25px;
+
+ 
+
 }
 .card{
   background:rgba(255,255,255,0.06);
@@ -83,9 +92,24 @@ th{ color:#a5b4fc; }
   <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg">
 </audio>
 
-<div class="header">
+<div class="header" style="position:relative;">
   🩺 IoT Health Monitoring Dashboard
+
+  <button onclick="logout()" style="
+    position:absolute;
+    right:20px;
+    top:20px;
+    padding:8px 16px;
+    border-radius:20px;
+    border:none;
+    background:#ef4444;
+    color:white;
+    font-weight:700;
+    cursor:pointer;">
+    Logout
+  </button>
 </div>
+
 
 <div class="dashboard">
 
@@ -207,9 +231,18 @@ async function loadDashboard(){
   });
 }
 
+function logout(){
+  localStorage.removeItem("loggedIn");
+  window.location.href = "login.html";
+}
+
+
+  
 const healthChartCanvas = document.getElementById("healthChart");
 loadDashboard();
 setInterval(loadDashboard,5000);
+
+  
 </script>
 
 </body>
